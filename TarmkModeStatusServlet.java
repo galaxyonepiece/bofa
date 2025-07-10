@@ -2,6 +2,8 @@ package com.adobe.aem.guides.wknd.core.servlets;
 
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.servlets.SlingAllMethodsServlet;
 import org.apache.sling.settings.SlingSettingsService;
 import org.osgi.framework.Constants;
@@ -12,10 +14,14 @@ import org.osgi.service.cm.ConfigurationAdmin;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import javax.jcr.Session;
 import javax.servlet.Servlet;
 import java.io.IOException;
 import java.util.Dictionary;
 import java.util.Set;
+import java.util.Collections;
+
+import com.adobe.aem.guides.wknd.core.utils.TimelineEventLogger; // Assuming this is a utility class for logging events
 
 @Component(
     service = Servlet.class,
@@ -31,6 +37,9 @@ public class TarmkModeStatusServlet extends SlingAllMethodsServlet {
 
     @Reference
     private SlingSettingsService slingSettingsService;
+
+    @Reference
+    private ResourceResolverFactory resolverFactory;
 
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws IOException {
@@ -78,6 +87,17 @@ public class TarmkModeStatusServlet extends SlingAllMethodsServlet {
             } catch (org.json.JSONException jsonEx) {
                 // unlikely
             }
+        }
+
+        try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(
+            Collections.singletonMap(ResourceResolverFactory.SUBSERVICE, "datawrite"))) {
+
+            Session session = serviceResolver.adaptTo(Session.class);
+            // Safe: This resolver has specific privileges for /var/audit writes
+            TimelineEventLogger.logTimelineEvent(session, "/content/dam/test.jpg", "admin", "Certification", "Test event");
+
+        } catch (Exception e) {
+            response.getWriter().write("Failed to get service resolver");
         }
 
         response.getWriter().write(json.toString());
